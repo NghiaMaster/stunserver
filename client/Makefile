@@ -6,7 +6,7 @@ PROJECT_OBJS := clientmain.o
 
 INCLUDES := $(BOOST_INCLUDE) -I../common -I../stuncore -I../networkutils -I../resources
 LIB_PATH := -L../common -L../stuncore -L../networkutils
-LIBS := -lnetworkutils -lstuncore -lcommon 
+LIBS := -lnetworkutils -lstuncore -lcommon -lpthread -lcurl
 
 
 all: $(PROJECT_TARGET)

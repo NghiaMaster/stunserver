@@ -20,6 +20,8 @@
 
 #include "stunauth.h"
 #include "socketrole.h"
+#include "stuncore.h"
+#include "socketaddress.h"
 
 struct StunMessageIn
 {
@@ -69,8 +71,8 @@ struct StunErrorCode
     char szRealm[MAX_STUN_AUTH_STRING_SIZE+1];
 };
 
-
-
+// Helper function to convert numeric IP string to CSocketAddress
+HRESULT NumericIPToAddress(int family, const char* pszIP, CSocketAddress* pAddr);
 
 class CStunRequestHandler
 {

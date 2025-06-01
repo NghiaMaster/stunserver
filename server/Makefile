@@ -5,8 +5,8 @@ PROJECT_OBJS := main.o server.o stunconnection.o stunsocketthread.o tcpserver.o
 
 INCLUDES := $(BOOST_INCLUDE) $(OPENSSL_INCLUDE) -I../common -I../stuncore -I../networkutils -I../resources
 LIB_PATH := -L../common -L../stuncore -L../networkutils
-LIBS := -lnetworkutils -lstuncore -lcommon -pthread 
-
+LIBS := -lnetworkutils -lstuncore -lcommon -pthread -lcurl
+CXXFLAGS += -DDEBUG
 
 all: $(PROJECT_TARGET)
 
@@ -15,5 +15,9 @@ clean:
 
 $(PROJECT_TARGET): $(PROJECT_OBJS)
 	$(LINK.cpp) -o $@ $^ $(LIB_PATH) $(LIBS) $(SOCKET_LIBS) $(CRYPTO_LIBS) $(ASLR_FLAGS) $(PGO_LINK_FLAGS)
+
+# Add this line to ensure proper linking
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 

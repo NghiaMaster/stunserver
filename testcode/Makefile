@@ -5,8 +5,8 @@ PROJECT_OBJS := testatomichelpers.o testbuilder.o testclientlogic.o testcmdline.
  
 INCLUDES := $(BOOST_INCLUDE) $(OPENSSL_INCLUDE) -I../common -I../stuncore -I../networkutils
 LIB_PATH := -L../networkutils -L../stuncore -L../common
-LIBS := -lnetworkutils -lstuncore -lcommon -lpthread 
-
+LIBS := -lnetworkutils -lstuncore -lcommon -lpthread -lcurl
+CXXFLAGS += -DDEBUG
 
 all: $(PROJECT_TARGET)
 
@@ -15,4 +15,8 @@ clean:
 
 $(PROJECT_TARGET): $(PROJECT_OBJS)
 	$(LINK.cpp) -o $@ $^ $(LIB_PATH) $(LIBS) $(SOCKET_LIBS) $(CRYPTO_LIBS) $(ASLR_FLAGS) $(PGO_LINK_FLAGS)
+
+# Add this line to ensure proper linking
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 

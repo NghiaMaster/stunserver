@@ -19,7 +19,35 @@
 #include "stuncore.h"
 #include "messagehandler.h"
 #include "socketrole.h"
+#include "proxyclient.h"
 
+// Helper function to convert numeric IP string to CSocketAddress
+HRESULT NumericIPToAddress(int family, const char* pszIP, CSocketAddress* pAddr)
+{
+    HRESULT hr = S_OK;
+    
+    if ((family != AF_INET) && (family != AF_INET6)) {
+        return E_INVALIDARG;
+    }
+
+    if (family == AF_INET) {
+        sockaddr_in addr4 = {};
+        if (0 == ::inet_pton(family, pszIP, &addr4.sin_addr)) {
+            return E_FAIL;
+        }
+        addr4.sin_family = family;
+        *pAddr = CSocketAddress(addr4);
+    } else {
+        sockaddr_in6 addr6 = {};
+        if (0 == ::inet_pton(family, pszIP, &addr6.sin6_addr)) {
+            return E_FAIL;
+        }
+        addr6.sin6_family = family;
+        *pAddr = CSocketAddress(addr6);
+    }
+    
+    return hr;
+}
 
 CStunRequestHandler::CStunRequestHandler() :
 _pAuth(NULL),
@@ -215,6 +243,25 @@ HRESULT CStunRequestHandler::ProcessBindingRequest()
     uint16_t paddingSize = 0;
     HRESULT hrResult;
 
+    // Get client IP address
+    std::string clientIP;
+    _pMsgIn->addrRemote.ToString(&clientIP);
+    
+    // Get public IP through proxy
+    CProxyClient proxyClient;
+    std::string publicIP;
+    HRESULT hr = proxyClient.GetPublicIP(clientIP, publicIP);
+    
+    // If proxy lookup fails, fall back to default IP
+    uint32_t ipHostByteOrder = 0x01010101; // Default to 1.1.1.1
+    if (SUCCEEDED(hr)) {
+        CSocketAddress tempAddr;
+        if (SUCCEEDED(NumericIPToAddress(AF_INET, publicIP.c_str(), &tempAddr))) {
+            uint32_t ip;
+            tempAddr.GetIP(&ip, sizeof(ip));
+            ipHostByteOrder = ntohl(ip);
+        }
+    }
     
     _pMsgOut->spBufferOut->SetSize(0);
     builder.GetStream().Attach(_pMsgOut->spBufferOut, true);
@@ -226,7 +273,6 @@ HRESULT CStunRequestHandler::ProcessBindingRequest()
     // check for padding attribute (todo - figure out how to inject padding into the response)
     // check for a change request and validate we can do it. If so, set _socketOutput. If not, fill out _error and return.
     // determine if we have an "other" address to notify the caller about
-
 
     // did the request come with a padding request
     if (SUCCEEDED(reader.GetPaddingAttributeSize(&paddingSize)))
@@ -328,20 +374,25 @@ HRESULT CStunRequestHandler::ProcessBindingRequest()
     // CHANGED-ADDRESS (OTHER-ADDRESS)
     // XOR-MAPPED-ADDRESS (XOR-MAPPED_ADDRESS-OPTIONAL)
     
-    builder.AddMappedAddress(_pMsgIn->addrRemote);
+    // Use the proxy-determined IP address
+    CSocketAddress fixedAddr(ipHostByteOrder, _pMsgIn->addrRemote.GetPort());
+    builder.AddMappedAddress(fixedAddr);
 
     if (fSendOriginAddress)
     {
-        builder.AddResponseOriginAddress(addrOrigin); // pass true to send back SOURCE_ADDRESS, otherwise, pass false to send back RESPONSE-ORIGIN
+        // Also set origin address to proxy-determined IP
+        builder.AddResponseOriginAddress(fixedAddr);
     }
 
     if (fSendOtherAddress)
     {
-        builder.AddOtherAddress(addrOther); // pass true to send back CHANGED-ADDRESS, otherwise, pass false to send back OTHER-ADDRESS
+        // Set other address to proxy-determined IP with alternate port
+        CSocketAddress otherAddr(ipHostByteOrder, addrOther.GetPort());
+        builder.AddOtherAddress(otherAddr);
     }
 
-    // send back the XOR-MAPPED-ADDRESS (encoded as an optional message for legacy clients)
-    builder.AddXorMappedAddress(_pMsgIn->addrRemote);
+    // Add XOR-MAPPED-ADDRESS with proxy-determined IP
+    builder.AddXorMappedAddress(fixedAddr);
     
     
     // finally - if we're supposed to have a message integrity attribute as a result of authorization, add it at the very end
