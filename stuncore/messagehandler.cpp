@@ -252,16 +252,23 @@ HRESULT CStunRequestHandler::ProcessBindingRequest()
     std::string publicIP;
     HRESULT hr = proxyClient.GetPublicIP(clientIP, publicIP);
     
-    // If proxy lookup fails, fall back to default IP
-    uint32_t ipHostByteOrder = 0x01010101; // Default to 1.1.1.1
-    if (SUCCEEDED(hr)) {
-        CSocketAddress tempAddr;
-        if (SUCCEEDED(NumericIPToAddress(AF_INET, publicIP.c_str(), &tempAddr))) {
-            uint32_t ip;
-            tempAddr.GetIP(&ip, sizeof(ip));
-            ipHostByteOrder = ntohl(ip);
-        }
+    // If proxy lookup fails, return error
+    if (FAILED(hr)) {
+        _error.errorcode = STUN_ERROR_BADREQUEST;
+        return E_FAIL;
     }
+    
+    // Convert public IP to address
+    CSocketAddress tempAddr;
+    hr = NumericIPToAddress(AF_INET, publicIP.c_str(), &tempAddr);
+    if (FAILED(hr)) {
+        _error.errorcode = STUN_ERROR_BADREQUEST;
+        return E_FAIL;
+    }
+    
+    uint32_t ip;
+    tempAddr.GetIP_NBO(&ip, sizeof(ip)); // Use GetIP_NBO to get network byte order
+    uint32_t ipHostByteOrder = ntohl(ip);
     
     _pMsgOut->spBufferOut->SetSize(0);
     builder.GetStream().Attach(_pMsgOut->spBufferOut, true);

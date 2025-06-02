@@ -19,6 +19,9 @@
 
 #include "commonincludes.hpp"
 #include "socketaddress.h"
+#include <chrono>
+#include <map>
+#include <string>
 
 class CProxyClient {
 private:
@@ -27,6 +30,30 @@ private:
     uint16_t _proxyPort;
     std::string _proxyUsername;
     std::string _proxyPassword;
+    std::string _proxyScheme;
+    std::string _proxyUser;
+    std::string _proxyPass;
+
+    struct WriteContext {
+        std::string response_data;
+        size_t total_bytes = 0;
+        bool error = false;
+    };
+
+    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
+
+    struct CachedIP {
+        std::string ip_address;
+        std::chrono::steady_clock::time_point timestamp;
+    };
+
+    struct CachedProxy {
+        std::string proxy_url;
+        std::chrono::steady_clock::time_point timestamp;
+    };
+
+    static std::map<std::string, CachedIP> _ip_cache;
+    static std::map<std::string, CachedProxy> _proxy_cache;
 
     HRESULT ParseProxyUrl(const std::string& url);
     HRESULT ConnectToProxy();
